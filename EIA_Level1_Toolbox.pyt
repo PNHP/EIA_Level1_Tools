@@ -2,7 +2,10 @@
 ---------------------------------------------------------------------------------------------------------------------
 Name: EIA Level 1 Toolbox
 Purpose: This Python Toolbox allows users to calculate level 1 EIA metrics on selected polygons. This tool modifies the
-original dataset.
+original dataset. Metrics are derived or modified from:
+Faber-Langendoen, D., W. Nichols, K. Walz, J. Rocchio, J. Lemly, and L. Gilligan, 2016. NatureServe Ecological Integrity
+Assessment: Protocols for Rapid Field Assessment of Wetlands. NatureServe, Arlington, VA.
+https://www.natureserve.org/sites/default/files/projects/files/NatureServe%20EIA%20Wetlands_L2%20Protocols_2016%20v2_06.pdf
 Author: Molly Moore for Pennsylvania Natural Heritage Program
 Created: 12/2/2024
 Updates:
@@ -10,7 +13,7 @@ Updates:
 """
 
 ########################################################################################################################
-## Import packages and define environment settings
+## Import packages and define universal environment settings
 ########################################################################################################################
 
 import arcpy
@@ -26,7 +29,6 @@ from arcgis.raster import ImageryLayer
 
 arcpy.env.overwriteOutput = True
 arcpy.env.transferDomains = True
-
 
 ########################################################################################################################
 ## Begin toolbox
@@ -103,6 +105,7 @@ class CalculateLevel1Metrics(object):
 
         csv_folder = os.path.dirname(scratch_workspace)
 
+        # FOR TESTING PURPOSES
         # selected_input = r"H:\temp\EIA\temp.gdb\TEST_POLYGONS_EIA_albers"
         # nlcd = r"W:\\Heritage\\Heritage_Data\\Heritage_Data_Tools\\EIA_Level1_Tools\\EIA_Data.gdb\\NLCD_2019_pa_albers"
         # scratch_workspace = r"C:\Users\mmoore\Desktop\EIA_sandbox\Default.gdb"
@@ -192,7 +195,7 @@ class CalculateLevel1Metrics(object):
         oid_fieldname = arcpy.Describe(selected_input).OIDFieldName
         input_oids = sorted({row[0] for row in arcpy.da.SearchCursor(selected_input, oid_fieldname)})
 
-
+        # create lists to hold lan1 and lan2 values - these are used if the user chooses to export sub-zone values to a .csv
         lan1_tuples = []
         lan2_tuples = []
 
@@ -342,7 +345,7 @@ class CalculateLevel1Metrics(object):
             # get length of area of interest line divided by 8 to segment into 8 sections between transects
             with arcpy.da.SearchCursor(input_line, "Shape_Length") as cursor:
                 for row in cursor:
-                    section_length = (row[0] / 30) - 1
+                    section_length = (row[0] / 30) - 0.01
 
             # generate 200m transects at equal intervals along area of interest line feature (so that there is 100m line extending to 100m buffer
             transects = arcpy.GenerateTransectsAlongLines_management(input_line, os.path.join(scratch_gdb, "transects"),
@@ -367,22 +370,27 @@ class CalculateLevel1Metrics(object):
                                                               os.path.join(scratch_gdb, "transect_natural"), "ALL",
                                                               output_type="LINE")
 
-            transect_natural_lyr = arcpy.SelectLayerByLocation_management(transect_natural, "INTERSECT", input_line)
+            # get intersected transects as single part features so that we can select only the contiguous transects
+            transect_nat_single = arcpy.MultipartToSinglepart_management(transect_natural, os.path.join(scratch_gdb, "transect_nat_single"))
+
+            # select only the transects that intersect with the assessment area to get only contiguous transects
+            transect_natural_lyr = arcpy.SelectLayerByLocation_management(transect_nat_single, "INTERSECT", input_line)
 
             # convert line transects fc to pandas dataframe to do calculations
             final_fields = ["Shape_Length"]
             transect_intersect_df = pd.DataFrame((row for row in arcpy.da.SearchCursor(transect_natural_lyr, final_fields)),
                                              columns=final_fields)
 
-            # calculate buf1 by adding percent of natural land cover classes overlapping perimeter of area of interest
+            # calculate buf2 by dividing the summed length of transects by the number of transects
             if transect_intersect_df.empty:
                 buf2 = 0
             else:
                 buf2 = round((transect_intersect_df['Shape_Length'].sum()) / 30, 3)
 
-            if buf2 >= 99:
+            # calculate buf2 rank
+            if buf2 >= 100:
                 buf2_rank = "A"
-            elif 75 <= buf2 < 99:
+            elif 75 <= buf2 < 100:
                 buf2_rank = "B"
             elif 25 <= buf2 < 75:
                 buf2_rank = "C"
@@ -456,7 +464,7 @@ class CalculateLevel1Metrics(object):
 
         if subzones:
             # Open the CSV file in write mode
-            with open(os.path.join(csv_folder, "LAN1_values1.csv"), "w", newline="") as file:
+            with open(os.path.join(csv_folder, "LAN1_values.csv"), "w", newline="") as file:
                 # Create a CSV writer object
                 writer = csv.writer(file)
                 # Write the header row (optional)
@@ -464,7 +472,7 @@ class CalculateLevel1Metrics(object):
                 # Write the data rows
                 writer.writerows(lan1_tuples)
 
-            with open(os.path.join(csv_folder, "LAN2_values1.csv"), "w", newline="") as file:
+            with open(os.path.join(csv_folder, "LAN2_values.csv"), "w", newline="") as file:
                 # Create a CSV writer object
                 writer = csv.writer(file)
                 # Write the header row (optional)
