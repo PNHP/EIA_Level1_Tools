@@ -1,1 +1,1 @@
-<p align="left"> Refer to guide for instructions, methods, and limitations of the tool: [EIA Landscape Metrics Toolbox - Guide.pdf](https://github.com/user-attachments/files/18324118/EIA.Landscape.Metrics.Toolbox.-.Guide.pdf) </p>
+<p align="left"> Refer to guide for instructions, methods, and limitations of the tool: <a href="https://github.com/user-attachments/files/18324118/EIA.Landscape.Metrics.Toolbox.-.Guide.pdf">EIA Landscape Metrics Toolbox - Guide.pdf</a></p>
